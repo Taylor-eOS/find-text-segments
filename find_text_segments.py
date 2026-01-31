@@ -1,4 +1,5 @@
 import os
+import re
 from settings import WRITINGS_PATH
 
 def collect_matching_segments(main_folder, output_file):
@@ -10,6 +11,13 @@ def collect_matching_segments(main_folder, output_file):
     if not search_terms:
         print("No valid search terms found, exiting.")
         return
+    first_term = search_terms[0]
+    safe_name = re.sub(r'[^a-z0-9\s_-]', '', first_term)
+    safe_name = re.sub(r'[\s_-]+', '_', safe_name.strip())
+    if not safe_name:
+        safe_name = "search"
+   
+    output_file = safe_name + "_segments.txt"
     found_segments = set()
     for item in os.listdir(main_folder):
         item_path = os.path.join(main_folder, item)
@@ -38,5 +46,5 @@ def collect_matching_segments(main_folder, output_file):
 
 if __name__ == '__main__':
     main_folder = WRITINGS_PATH
-    output_file = 'collected_segments.txt'
-    collect_matching_segments(main_folder, output_file)
+    collect_matching_segments(main_folder, None)
+
