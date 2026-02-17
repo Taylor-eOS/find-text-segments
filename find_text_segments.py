@@ -16,7 +16,6 @@ def collect_matching_segments(main_folder, output_file):
     safe_name = re.sub(r'[\s_-]+', '_', safe_name.strip())
     if not safe_name:
         safe_name = "search"
-   
     output_file = safe_name + "_segments.txt"
     found_segments = set()
     for item in os.listdir(main_folder):
@@ -31,10 +30,10 @@ def collect_matching_segments(main_folder, output_file):
                     segments = [part.strip() for part in raw_parts if part.strip()]
                     for segment in segments:
                         segment_lower = segment.lower()
-                        if any(term in segment_lower for term in search_terms):
+                        if all(term in segment_lower for term in search_terms):
                             found_segments.add(segment)
     if not found_segments:
-        print(f"No segments found containing any of: {', '.join(search_terms)}")
+        print(f"No segments found containing all of: {', '.join(search_terms)}")
         return
     with open(output_file, 'w', encoding='utf-8') as out:
         for i, segment in enumerate(sorted(found_segments), 1):
