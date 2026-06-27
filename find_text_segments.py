@@ -1,5 +1,38 @@
 import os
-from settings import WRITINGS_PATH
+import json
+
+FIELD_NAME = 'writings_path'
+SETTINGS_FILE = 'settings_file'
+
+_state = {
+    SETTINGS_FILE: '.script_settings.json',
+    FIELD_NAME: ''
+}
+
+def _prompt_and_save_path():
+    user_path = input("Settings file or entry not found. Enter default path: ").strip()
+    try:
+        with open(_state[SETTINGS_FILE], 'r') as f:
+            settings_data = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        settings_data = {}
+    settings_data[FIELD_NAME] = user_path
+    with open(_state[SETTINGS_FILE], 'w') as f:
+        json.dump(settings_data, f, indent=2)
+    _state[FIELD_NAME] = user_path
+
+def load_writings_path():
+    if not os.path.exists(_state[SETTINGS_FILE]):
+        _prompt_and_save_path()
+        return
+    with open(_state[SETTINGS_FILE], 'r') as f:
+        try:
+            settings_data = json.load(f)
+            _state[FIELD_NAME] = settings_data.get(FIELD_NAME, '')
+        except json.JSONDecodeError:
+            _state[FIELD_NAME] = ''
+    if not _state[FIELD_NAME]:
+        _prompt_and_save_path()
 
 def get_yes_no(prompt, default=False):
     resp = input(f"{prompt} [{'Y/n' if default else 'y/N'}]: ").strip().lower()
@@ -24,7 +57,9 @@ def sanitize_filename(term):
     name = ''.join(out_chars).strip('_')
     return name or "search"
 
-def collect_matching_segments(main_folder, output_file):
+def collect_matching_segments(main_folder=None, output_file=None):
+    if main_folder is None:
+        main_folder = input("Enter main folder path (default to JSON): ").strip() or _state[FIELD_NAME]
     raw_input = input("Enter AND search strings (comma-separated, spaces permitted): ").strip()
     if not raw_input:
         print("No search string given.")
@@ -33,7 +68,7 @@ def collect_matching_segments(main_folder, output_file):
     if not search_terms:
         print("No valid search terms found.")
         return
-    include_assistant = get_yes_no("Include Assistant segments:'?", True)
+    include_assistant = get_yes_no("Include Assistant segments?", True)
     include_user = get_yes_no("Include User segments?", True)
     first_term = search_terms[0]
     safe_name = sanitize_filename(first_term)
@@ -84,6 +119,6 @@ def collect_matching_segments(main_folder, output_file):
     print(f"Results written to {output_file}")
 
 if __name__ == '__main__':
-    main_folder = WRITINGS_PATH
-    collect_matching_segments(main_folder, None)
+    load_writings_path()
+    collect_matching_segments()
 
