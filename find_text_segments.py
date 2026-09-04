@@ -3,6 +3,7 @@ import json
 
 FIELD_NAME = 'writings_path'
 SETTINGS_FILE = 'settings_file'
+MAX_SEGMENT_LINES = None
 
 _state = {
     SETTINGS_FILE: '.script_settings.json',
@@ -57,10 +58,18 @@ def sanitize_filename(term):
     name = ''.join(out_chars).strip('_')
     return name or "search"
 
+def truncate_segment(segment, max_lines):
+    if max_lines is None:
+        return segment
+    lines = segment.split('\n')
+    if len(lines) <= max_lines + 1:
+        return segment
+    return '\n'.join(lines[:max_lines + 1])
+
 def collect_matching_segments(main_folder=None, output_file=None):
-    if main_folder is None:
-        main_folder = input("Enter main folder path (default to JSON): ").strip() or _state[FIELD_NAME]
     raw_input = input("Enter AND search strings (comma-separated, spaces permitted): ").strip()
+    if main_folder is None:
+        main_folder = input("Where to search? (default): ").strip() or _state[FIELD_NAME]
     if not raw_input:
         print("No search string given.")
         return
@@ -73,7 +82,9 @@ def collect_matching_segments(main_folder=None, output_file=None):
     first_term = search_terms[0]
     safe_name = sanitize_filename(first_term)
     output_file = output_file or (safe_name + "_segments.txt")
-    found_segments = set()
+    seen_segments = set()
+    other_segments = []
+    assistant_segments = []
     if not os.path.isdir(main_folder):
         print(f"Main folder not found: {main_folder}")
         return
@@ -102,13 +113,21 @@ def collect_matching_segments(main_folder=None, output_file=None):
                             continue
                         if is_user and not include_user:
                             continue
-                        found_segments.add(segment)
+                        if segment in seen_segments:
+                            continue
+                        seen_segments.add(segment)
+                        segment = truncate_segment(segment, MAX_SEGMENT_LINES)
+                        if is_assistant:
+                            assistant_segments.append(segment)
+                        else:
+                            other_segments.append(segment)
+    found_segments = other_segments + assistant_segments
     if not found_segments:
         print(f"No segments found containing all of: {', '.join(search_terms)}")
         return
     try:
         with open(output_file, 'w', encoding='utf-8') as out:
-            for i, segment in enumerate(sorted(found_segments), 1):
+            for i, segment in enumerate(found_segments, 1):
                 out.write(segment)
                 if i < len(found_segments):
                     out.write('\n\n')
