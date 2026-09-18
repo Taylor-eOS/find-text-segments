@@ -3,7 +3,7 @@ import json
 
 FIELD_NAME = 'writings_path'
 SETTINGS_FILE = 'settings_file'
-MAX_SEGMENT_LINES = None
+MAX_SEGMENT_LINES = 100
 
 _state = {
     SETTINGS_FILE: '.script_settings.json',
@@ -67,7 +67,7 @@ def truncate_segment(segment, max_lines):
     return '\n'.join(lines[:max_lines + 1])
 
 def collect_matching_segments(main_folder=None, output_file=None):
-    raw_input = input("Enter AND search strings (comma-separated, spaces permitted): ").strip()
+    raw_input = input("Enter AND search strings (comma-separated): ").strip()
     if main_folder is None:
         main_folder = input("Where to search? (default): ").strip() or _state[FIELD_NAME]
     if not raw_input:
@@ -81,46 +81,51 @@ def collect_matching_segments(main_folder=None, output_file=None):
     include_user = get_yes_no("Include User segments?", True)
     first_term = search_terms[0]
     safe_name = sanitize_filename(first_term)
-    output_file = output_file or (safe_name + "_segments.txt")
+    desktop_dir = os.path.join(os.path.expanduser('~'), 'Desktop')
+    os.makedirs(desktop_dir, exist_ok=True)
+    output_file = output_file or os.path.join(desktop_dir, safe_name + "_segments.txt")
     seen_segments = set()
     other_segments = []
     assistant_segments = []
     if not os.path.isdir(main_folder):
         print(f"Main folder not found: {main_folder}")
         return
+    scan_dirs = [main_folder]
     for item in os.listdir(main_folder):
         item_path = os.path.join(main_folder, item)
         if os.path.isdir(item_path):
-            for filename in os.listdir(item_path):
-                if filename.lower().endswith('.txt'):
-                    file_path = os.path.join(item_path, filename)
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            content = f.read().strip()
-                    except Exception as e:
-                        print(f"Warning: could not read {file_path}, skipping. Error: {e}")
+            scan_dirs.append(item_path)
+    for dir_path in scan_dirs:
+        for filename in os.listdir(dir_path):
+            if filename.lower().endswith('.txt'):
+                file_path = os.path.join(dir_path, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                except Exception as e:
+                    print(f"Warning: could not read {file_path}, skipping. Error: {e}")
+                    continue
+                raw_parts = content.replace('\n\n', '\n---\n').split('---')
+                segments = [part.strip() for part in raw_parts if part.strip()]
+                for segment in segments:
+                    segment_lower = segment.lower()
+                    if not all(term in segment_lower for term in search_terms):
                         continue
-                    raw_parts = content.replace('\n\n', '\n---\n').split('---')
-                    segments = [part.strip() for part in raw_parts if part.strip()]
-                    for segment in segments:
-                        segment_lower = segment.lower()
-                        if not all(term in segment_lower for term in search_terms):
-                            continue
-                        stripped = segment.lstrip()
-                        is_assistant = stripped.lower().startswith('assistant:')
-                        is_user = stripped.lower().startswith('user:')
-                        if is_assistant and not include_assistant:
-                            continue
-                        if is_user and not include_user:
-                            continue
-                        if segment in seen_segments:
-                            continue
-                        seen_segments.add(segment)
-                        segment = truncate_segment(segment, MAX_SEGMENT_LINES)
-                        if is_assistant:
-                            assistant_segments.append(segment)
-                        else:
-                            other_segments.append(segment)
+                    stripped = segment.lstrip()
+                    is_assistant = stripped.lower().startswith('assistant:')
+                    is_user = stripped.lower().startswith('user:')
+                    if is_assistant and not include_assistant:
+                        continue
+                    if is_user and not include_user:
+                        continue
+                    if segment in seen_segments:
+                        continue
+                    seen_segments.add(segment)
+                    segment = truncate_segment(segment, MAX_SEGMENT_LINES)
+                    if is_assistant:
+                        assistant_segments.append(segment)
+                    else:
+                        other_segments.append(segment)
     found_segments = other_segments + assistant_segments
     if not found_segments:
         print(f"No segments found containing all of: {', '.join(search_terms)}")
